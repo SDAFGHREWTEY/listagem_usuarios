@@ -1,89 +1,200 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
-import SearchBar from "./components/SearchBar";
-import UserCard from "./components/UserCard";
-import EmptyState from "./components/EmptyState";
+
+import HeaderComponent from "./components/HeaderComponent";
+import LoadingComponent from "./components/LoadingComponent";
+import UserListComponent from "./components/UserListComponent";
+
+import "./App.css";
+import UserDetailsComponent from "./components/UserDetailsComponent";
+import UserForm from "./components/UserForm";
+import NovoUsuarioComponent from "./components/NovoUsuarioComponent";
+import ModalComponent from "./components/ModalComponent";
+
 
 const filtrarUsuarioPorTermo = (termo) => (usuario) => {
-  const termoLower = termo.toLowerCase();
-
-  return (
-    usuario.name.toLowerCase().includes(termoLower) ||
-    usuario.username.toLowerCase().includes(termoLower) ||
-    usuario.email.toLowerCase().includes(termoLower)
-  );
+    const termoLower = termo.toLowerCase();
+    return (
+        usuario.name.toLowerCase().includes(termoLower) ||
+        usuario.username.toLowerCase().includes(termoLower) ||
+        usuario.email.toLowerCase().includes(termoLower)
+    );
 };
 
-export default function App() {
-  const url = "https://jsonplaceholder.typicode.com";
-  const [usuarios, setUsuarios] = useState([]);
-  const [error, setError] = useState(null);
-  const [carregando, setCarregando] = useState(false);
-  const [busca, setBusca] = useState("");
 
-  const usuariosFiltrados = usuarios.filter(filtrarUsuarioPorTermo(busca));
+function App() {
+    const url = "https://jsonplaceholder.typicode.com";
 
-  async function buscarUsuarios() {
-    try {
-      setCarregando(true);
-      const response = await axios.get(`${url}/users`);
-      setUsuarios(response.data);
-    } catch (error) {
-      console.log("Error when fetching user: ", error);
-      setError(`Users were not loaded - ${error.message}`);
-      setUsuarios([]);
-    } finally {
-      setCarregando(false);
+    const [usuarios, setUsuarios] = useState([]);
+    const [erro, setErro] = useState(null);
+    const [carregando, setCarregando] = useState(true);
+    const [busca, setBusca] = useState("");
+    const [usuarioSelecionado, setUsuarioSelecionado] = useState(null)
+    const [novoUsuario, setNovoUsuario] = useState(null)
+    const [modalNovoUsuarioAberto, setModalNovoUsuarioAberto] = useState(false)
+    const [usuarioExcluindo, setUsuarioExcluindo] = useState(null)
+    const [erroAcao, setErroAcao] = useState(null)
+
+
+    const usuariosFiltrados = usuarios
+        .filter(filtrarUsuarioPorTermo(busca));
+
+    async function buscarUsuario(id) {
+        try {
+            const response = await axios.get(
+                `${url}/users/${id}`
+            )
+            const data = response.data
+            setUsuarioSelecionado(data)
+        } catch (error) {
+            console.log("Erro ao buscar usuário: ", error)
+        }
     }
-  }
 
-  useEffect(() => {
-    buscarUsuarios();
-  }, []);
 
-  return (
-    <div className="app-container">
-      <header className="app-header">
-        <div className="title-group">
-          <span aria-hidden="true">👥</span>
-          <h1 className="app-title">Catálogo de Usuários</h1>
-        </div>
-        <p className="subtitle">Explore e busque usuários em tempo real.</p>
+    async function buscarUsuarios() {
+        try {
+            setCarregando(true);
+            const response = await axios.get(
+                `${url}/users`
+            );
 
-        <div className="progress-container">
-          <div className="progress-info">
-            <span>Progresso</span>
-            <span>{usuarios.length > 0 ? `${usuariosFiltrados.length}/${usuarios.length}` : "0/0"}</span>
-          </div>
-          <div className="progress-track">
-            <div
-              className="progress-fill"
-              style={{
-                width: `${usuarios.length ? (usuariosFiltrados.length / usuarios.length) * 100 : 0}%`,
-              }}
+            const data = response.data;
+
+            setUsuarios(data);
+        } catch (error) {
+            console.log(
+                "Erro ao buscar usuários: ",
+                error
+            );
+            setErro(
+                `Não foi possível carregar os usuários. Código: ${error.message}`
+            );
+            setUsuarios([]);
+        } finally {
+            setCarregando(false);
+        }
+    }
+
+    function limparDetalhesUsuario() {
+        setUsuarioSelecionado(null)
+    }
+
+    async function cadastrarUsuario(usuario) {
+        try {
+            const response = await axios.post(
+                `${url}/users`, usuario
+            )
+            const data = response.data
+            setNovoUsuario(data)
+            setUsuarios([...usuarios, data])
+            setModalNovoUsuarioAberto(false)
+        } catch (error) {
+            console.log("Erro ao cadastrar usuário: ", error)
+        }
+    }
+
+    async function excluirUsuario(usuario) {
+        const confirmado = window.confirm(
+            `Tem certeza que deseja excluir ${usuario.name}?`
+        )
+
+        if (!confirmado) {
+            return
+        }
+
+        try {
+            setUsuarioExcluindo(usuario.id)
+            setErroAcao(null)
+            await axios.delete(`${url}/users/${usuario.id}`)
+            setUsuarios((usuariosAtuais) =>
+                usuariosAtuais.filter((item) => item.id !== usuario.id)
+            )
+            setUsuarioSelecionado((selecionado) =>
+                selecionado?.id === usuario.id ? null : selecionado
+            )
+        } catch (error) {
+            console.error("Erro ao excluir usuário: ", error)
+            setErroAcao(
+                `Não foi possível excluir ${usuario.name}. Tente novamente.`
+            )
+        } finally {
+            setUsuarioExcluindo(null)
+        }
+    }
+
+    useEffect(() => {
+        buscarUsuarios();
+    }, []);
+
+
+    return (
+        <div className="app">
+            <HeaderComponent
+                busca={busca}
+                setBusca={setBusca}
             />
-          </div>
+            {carregando && (
+                <LoadingComponent />
+            )}
+
+            <p className="informacao">
+                Usuários cadastrados: {usuarios.length}
+            </p>
+
+            {erro && (
+                <p className="erro">
+                    {erro}
+                </p>
+            )}
+            {erroAcao && (
+                <p className="erro" role="alert">
+                    {erroAcao}
+                </p>
+            )}
+
+
+            {!carregando && !erro && (
+                <>
+                    <p className="informacao">
+                        {usuariosFiltrados.length} usuário(s) encontrado(s)
+                    </p>
+
+                    {usuariosFiltrados.length > 0 ? (
+                        <UserListComponent
+                            usuarios={usuariosFiltrados}
+                            onSelecionarUsuario={buscarUsuario}
+                            onExcluirUsuario={excluirUsuario}
+                            usuarioExcluindo={usuarioExcluindo}
+                        />
+                    ) : (
+                        <p className="sem-resultados">
+                            Nenhum usuário encontrado.
+                        </p>
+                    )}
+
+                    {usuarioSelecionado && (
+                        <ModalComponent onFechar={limparDetalhesUsuario}>
+                            <UserDetailsComponent
+                                usuario={usuarioSelecionado}
+                                onFecharDetalhes={limparDetalhesUsuario}
+                            />
+                        </ModalComponent>
+                    )}
+                    
+                    {novoUsuario && (
+                        <NovoUsuarioComponent novoUsuario={novoUsuario}/>
+                    )}
+
+                </>
+            )}
+            {modalNovoUsuarioAberto && (
+                <ModalComponent titulo="Cadastrar Novo Usuário" onFechar={() => setModalNovoUsuarioAberto(false)}>
+                    <UserForm onCadastrar={cadastrarUsuario}/>
+                </ModalComponent>
+            )}
         </div>
-      </header>
-
-      <SearchBar
-        value={busca}
-        onChange={setBusca}
-        onClear={() => setBusca("")}
-      />
-
-      {carregando && <p className="empty-state">Carregando usuários...</p>}
-      {error && <p className="empty-state">{error}</p>}
-
-      {!carregando && !error && (
-        <ul className="todo-list">
-          {usuariosFiltrados.length > 0 ? (
-            usuariosFiltrados.map((usuario) => <UserCard key={usuario.id} user={usuario} />)
-          ) : (
-            <EmptyState message="Nenhum usuário encontrado." />
-          )}
-        </ul>
-      )}
-    </div>
-  );
+    );
 }
+
+export default App;
